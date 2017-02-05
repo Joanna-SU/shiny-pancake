@@ -21,6 +21,16 @@ TABLE_FIELDS = (
 	("height", "Height")
 )
 
+DEFAULT_TABLE = {
+	"x_pos": 41, # Allows padding for chairs and a 5px margin
+	"y_pos": 41,
+	"width": 100,
+	"height": 100,
+	"capacity": 4,
+	"table_number": "",
+	"shape": 0 # Oval
+}
+
 NOT_LOGGED   = "Not logged in"
 LOGGED       = "Logged in as {}"
 LOGIN_TAG    = "Log In"

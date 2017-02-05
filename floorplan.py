@@ -1,8 +1,7 @@
 from tkinter import *
 from tkinter.ttk import Separator
 from constants import *
-from util import validate_digits
-import math
+import math, util, tableshapes
 
 class TableDetails(LabelFrame):
 	def __init__(self, master=None):
@@ -10,7 +9,7 @@ class TableDetails(LabelFrame):
 
 		self.fields = {}
 
-		vcmd = (self.register(validate_digits), "%S")
+		vcmd = (self.register(util.validate_digits), "%S")
 		for i in range(len(TABLE_FIELDS)):
 			field = TABLE_FIELDS[i]
 			Label(self, text=field[1]).grid(row=i, sticky=E)
@@ -21,11 +20,21 @@ class TableDetails(LabelFrame):
 			if field[0] != "table_number":
 				self.fields[field[0]].configure(vcmd=vcmd, validate="key")
 
+		update = lambda *args, **kwargs: self.edited()
+
+		self.shape = StringVar()
+		self.shape.trace("w", update)
+
+		Label(self, text="Shape").grid(row=len(TABLE_FIELDS), sticky=E)
+		OptionMenu(self, self.shape, *tableshapes.SHAPES) \
+			.grid(row=len(TABLE_FIELDS), column=1, sticky=EW)
+
 		self.vars = {field: StringVar() for field in self.fields}
 		for key in self.vars:
-			self.vars[key].trace("w", lambda a, b, c: self.edited())
+			self.vars[key].trace("w", update)
 			self.fields[key]["textvariable"] = self.vars[key]
 
+	# Should only have to update some things, could be an improvement
 	def edited(self):
 		if self.loading: return
 
@@ -46,6 +55,7 @@ class TableDetails(LabelFrame):
 		self.table.table["table_number"] = self.fields["table_number"].get()
 
 		self.table.move(x, y, False)
+		self.table.set_shape(tableshapes.SHAPES.index(self.shape.get()))
 		self.table.set_chairs(capacity)
 		self.table.resize(width, height)
 
@@ -58,6 +68,8 @@ class TableDetails(LabelFrame):
 				self.fields[field].delete(0, END)
 				self.fields[field].insert(0, table.table[field])
 
+		self.shape.set(tableshapes.SHAPES[table.table["shape"]])
+
 		self.loading = False
 
 class Table:
@@ -67,12 +79,14 @@ class Table:
 		self.selectcallback = selectcallback
 
 		self.chairs = []
-		self.set_shape(0)
+		self.shape = None
 		self.table_number = self.canvas.create_text(0, 0)
 
 		self.move(table["x_pos"], table["y_pos"], False)
 		self.resize(table["width"], table["height"], False)
-		self.set_chairs(3)
+		self.set_chairs(table["capacity"])
+		self.set_shape(table["shape"])
+
 		self.update_position()
 
 	def mouse_down(self, e):
@@ -101,9 +115,18 @@ class Table:
 		self.resize(right-left, bottom-top, update)
 
 	def set_shape(self, shape):
-		self.shape = self.canvas.create_oval(0, 0, 0, 0, width=2, fill="#eeeeee")
+		self.table["shape"] = shape
+		if not self.shape is None:
+			self.canvas.delete(self.shape)
+
+		if shape == tableshapes.OVAL:
+			self.shape = self.canvas.create_oval(0, 0, 0, 0, width=2, fill="#EEE")
+		else:
+			self.shape = self.canvas.create_rectangle(0, 0, 0, 0, width=2, fill="#EEE")
+
 		self.canvas.tag_bind(self.shape, "<Button-1>", self.mouse_down)
 		self.canvas.tag_bind(self.shape, "<B1-Motion>", self.mouse_move)
+		self.canvas.lift(self.table_number)
 
 	def set_chairs(self, count=None):
 		if not count is None:
@@ -112,36 +135,25 @@ class Table:
 		# Add new chairs if we don't have enough
 		if self.table["capacity"] > len(self.chairs):
 			for i in range(len(self.chairs), self.table["capacity"]):
-				self.chairs.append(self.canvas.create_oval(0, 0, 32, 32, fill="#dddddd"))
+				self.chairs.append(self.canvas.create_oval(0, 0, 32, 32, fill="#DDD"))
 		else: # Remove any extra
 			while len(self.chairs) > self.table["capacity"]:
 				self.canvas.delete(self.chairs.pop())
 
-		if self.table["capacity"] == 0: return
-
-		rx = self.table["width"] / 2
-		ry = self.table["height"] / 2
-		center_x = self.table["x_pos"] + rx
-		center_y = self.table["y_pos"] + ry
-		rx += 20
-		ry += 20
-
-		angle = 0
-		increment = 2*math.pi / self.table["capacity"]
-		for i in range(self.table["capacity"]):
-			x = center_x + rx*math.cos(angle)
-			y = center_y + ry*math.sin(angle)
-			angle += increment
-
-			self.canvas.coords(self.chairs[i], x - 16, y - 16, x + 16, y + 16)
+		i = 0
+		for point in tableshapes.generate_chairs(self.table):
+			self.canvas.coords(self.chairs[i],
+				point[0] - 16, point[1] - 16, point[0] + 16, point[1] + 16)
+			i += 1
 
 	def update_position(self):
 		self.canvas.coords(self.shape, self.table["x_pos"], self.table["y_pos"], self.table["x_pos"] + self.table["width"], self.table["y_pos"] + self.table["height"])
 		self.set_chairs()
 
+		self.canvas.coords(self.table_number, self.table["x_pos"] + self.table["width"] / 2, self.table["y_pos"] + self.table["height"] / 2)
+
 		self.canvas.dchars(self.table_number, 0, END)
 		self.canvas.insert(self.table_number, 0, "Table {}\nEmpty".format(self.table["table_number"]))
-		self.canvas.coords(self.table_number, self.table["x_pos"] + self.table["width"] / 2, self.table["y_pos"] + self.table["height"] / 2)
 
 		self.selectcallback(self)
 
@@ -183,16 +195,18 @@ class FloorPlan(Frame):
 		self.details.load_table(table)
 
 	def add_table(self):
-		table = { # This should be put somewhere else, or removed
-			"x_pos": 5,
-			"y_pos": 5,
-			"width": 100,
-			"height": 100,
-			"capacity": 4,
-			"table_number": "",
-			"shape": 0
-		}
-		self.tables.append(Table(table, self.floor_view, self.select_table))
+		new_table = dict(DEFAULT_TABLE)
+
+		# Finds the lowest available table number
+		lowest = 1
+		while True:
+			if util.table_number_in(self.tables, lowest):
+				lowest += 1
+			else:
+				break
+		new_table["table_number"] = str(lowest)
+
+		self.tables.append(Table(new_table, self.floor_view, self.select_table))
 
 	def toggle_editing(self):
 		self.set_editing(not self.editing)
