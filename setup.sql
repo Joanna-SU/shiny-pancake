@@ -1,7 +1,7 @@
 /* Stores the floor plan layout */
 CREATE TABLE IF NOT EXISTS layout_table (
 	table_id     INTEGER     PRIMARY KEY,
-	table_number INTEGER,
+	table_number CHAR(16),
 	capacity     INTEGER     NOT NULL,
 	x_pos        INTEGER     NOT NULL DEFAULT 0,
 	y_pos        INTEGER     NOT NULL DEFAULT 0,
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS staff (
 CREATE TABLE IF NOT EXISTS booking (
 	booking_id   INTEGER     PRIMARY KEY,
 	member_id    INTEGER,
-	table_id     INTEGER,
-	arrival      DATETIME,
-	status       INTEGER,
-	ping         BOOLEAN
+	table_id     INTEGER     NOT NULL,
+	arrival      INTEGER     NOT NULL,
+	status       INTEGER     NOT NULL DEFAULT 0,
+	ping         BOOLEAN     NOT NULL DEFAULT 0
 );

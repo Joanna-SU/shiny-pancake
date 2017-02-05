@@ -3,6 +3,7 @@ ADD_MEMBER = 1
 BOOKINGS = 2
 FLOOR_PLAN = 3
 CHOOSE_OPTION = 4
+TIME_FORMAT = "%Y-%m-%d %H:%M"
 
 BUTTONS = ["Log In", "Member Manager", "Booking Manager", "Floor Plan Manager"]
 FIELDS  = (

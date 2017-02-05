@@ -5,6 +5,7 @@ from login import *
 from member import *
 from data import *
 from floorplan import *
+from booking import *
 
 class MainWindow(Frame):
 	def __init__(self, master=None):
@@ -58,6 +59,9 @@ class MainWindow(Frame):
 			self.frames[FLOOR_PLAN].set_editing(False)
 
 		self.loginbutton["state"] = NORMAL
+
+	def tables_changed(self):
+		self.frames[BOOKINGS].populate_tables()
 
 	def frame(self, frame):
 		# Selects a frame by bringing it to the front
@@ -124,8 +128,8 @@ class MainWindow(Frame):
 		# Create the actual frames
 		self.frames.append(LoginForm(self.login, self.framewrapper))
 		self.frames.append(MemberManager(self.login, self.framewrapper))
-		self.frames.append(Label(self.framewrapper, text="[bookings]"))
-		self.frames.append(FloorPlan(self.framewrapper))
+		self.frames.append(BookingManager(self.framewrapper))
+		self.frames.append(FloorPlan(self.tables_changed, self.framewrapper))
 
 		self.frames.append(Label(self.framewrapper, text="Choose a menu option", relief=SUNKEN, bg="#DDD"))
 
@@ -135,6 +139,8 @@ class MainWindow(Frame):
 
 init_db()
 load_members()
+load_tables()
+load_bookings()
 window = MainWindow()
 
 # Handle first time admin login

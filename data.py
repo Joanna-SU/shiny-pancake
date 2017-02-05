@@ -31,8 +31,29 @@ ADD_TABLE       = "INSERT INTO layout_table " \
                   "(table_number, capacity, x_pos, y_pos, width, height, shape) " \
                   "VALUES (?, ?, ?, ?, ?, ?, ?);"
 
-LIST_TABLES     = "SELECT *" \
-                  "FROM layout_table"
+DELETE_TABLE    = "DELETE FROM layout_table " \
+                  "WHERE table_id=?;"
+
+MODIFY_TABLE    = "UPDATE layout_table " \
+                  "SET table_number=?, capacity=?, x_pos=?, y_pos=?, width=?, height=?, shape=? " \
+                  "WHERE table_id=?;"
+
+LIST_TABLES     = "SELECT * " \
+                  "FROM layout_table;"
+
+ADD_BOOKING     = "INSERT INTO booking " \
+                  "(table_id, arrival) " \
+                  "VALUES (?, ?);"
+
+MODIFY_BOOKING  = "UPDATE booking " \
+                  "SET table_id=?, arrival=? " \
+                  "WHERE booking_id=?;"
+
+DELETE_BOOKING  = "DELETE FROM booking " \
+                  "WHERE booking_id=?;"
+
+LIST_BOOKINGS   = "SELECT * " \
+                  "FROM booking;"
 
 # Password hashing and salting
 # Hashes and salts are all handled as bytes objects
@@ -87,5 +108,21 @@ def load_tables():
 			"table_id": row[0],
 			"shape": row[-1] # Last item is shape
 		}
-		for i in range(1, len(row)-2): # Remaining fields
+		for i in range(1, len(row)-1): # Remaining fields
 			tables[row[0]][TABLE_FIELDS[i-1][0]] = row[i]
+
+bookings = {}
+def load_bookings():
+	global bookings
+	cursor.execute(LIST_BOOKINGS)
+
+	bookings.clear()
+	for row in cursor.fetchall():
+		bookings[row[0]] = {
+			"booking_id": row[0],
+			"member_id": row[1],
+			"table_id": row[2],
+			"arrival": row[3],
+			"status": row[4],
+			"ping": row[5]
+		}

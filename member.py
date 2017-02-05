@@ -128,7 +128,7 @@ class EditMember(MemberForm):
 		if self.member and self.modified:
 			if not messagebox.askyesno("Are you sure?",
 					"You have made changes to {}.\nAre you sure you want to " \
-					"discard these changes?".format(self.member)):
+					"discard these changes?".format(self.member["first_name"])):
 				return False
 		self.clear_fields()
 		if member: self.load_member(member)
