@@ -38,3 +38,26 @@ LOGIN_TAG    = "Log In"
 LOGOUT_TAG   = "Log Out"
 MASK         = "\u2022"
 DATABASE     = "restaurant.db"
+
+STATUSES = (
+	"Empty",
+	"Arrived",
+	"Ordered",
+	"Eating",
+	"Ready for bill",
+	"Completed"
+)
+STATUS_TIMES = ( # In seconds
+	-1,
+	600,
+	900,
+	2400,
+	300
+)
+
+EMPTY        = 0
+ARRIVED      = 1
+ORDERED      = 2
+EATING       = 3
+PAYING       = 4
+COMPLETED    = 5

@@ -10,6 +10,9 @@ def table_number_in(tables, x):
 			return True
 	return False
 
+def is_soon(timestamp):
+	return datetime.datetime.now().timestamp() > timestamp - 1200 # 10 minutes
+
 #def validate_positive(after):
 #	try:
 #		return not after or int(after) > 0

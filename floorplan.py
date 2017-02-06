@@ -1,8 +1,9 @@
 from tkinter import *
 from tkinter.ttk import Separator
+from tkinter import messagebox
 from constants import *
 from data import *
-import math, util, tableshapes, sqlite3
+import math, util, tableshapes, sqlite3, datetime
 
 class TableDetails(LabelFrame):
 	def __init__(self, master=None):
@@ -84,15 +85,19 @@ class TableDetails(LabelFrame):
 		self.loading = False
 
 class Table:
-	def __init__(self, table, canvas, selectcallback):
+	def __init__(self, table, canvas, selectcallback, menucallback):
 		self.table = table
 		self.canvas = canvas
 		self.selectcallback = selectcallback
+		self.menucallback = menucallback
 
 		self.editing = False
 		self.chairs = []
 		self.shape = None
 		self.table_number = self.canvas.create_text(0, 0)
+
+		self.current_booking = None
+		self.status_since = -1
 
 		self.move(table["x_pos"], table["y_pos"], False)
 		self.resize(table["width"], table["height"], False)
@@ -101,10 +106,23 @@ class Table:
 
 		self.update_position()
 
+	def set_status(self, status):
+		if self.current_booking:
+			cursor.execute(SET_STATUS, (status, self.current_booking["booking_id"]))
+			database.commit()
+			self.current_booking["status"] = status
+			self.status_since = datetime.datetime.now().timestamp()
+
+			self.update_text()
+
 	def mouse_down(self, e):
 		if self.editing:
 			self.offset = (e.x - self.table["x_pos"], e.y - self.table["y_pos"])
 			self.selectcallback(self)
+
+	def right_down(self, e):
+		if not self.editing:
+			self.menucallback(self, e.x_root, e.y_root)
 
 	def mouse_move(self, e):
 		if self.editing:
@@ -139,6 +157,7 @@ class Table:
 			self.shape = self.canvas.create_rectangle(0, 0, 0, 0, width=2, fill="#EEE")
 
 		self.canvas.tag_bind(self.shape, "<Button-1>", self.mouse_down)
+		self.canvas.tag_bind(self.shape, "<Button-3>", self.right_down)
 		self.canvas.tag_bind(self.shape, "<B1-Motion>", self.mouse_move)
 		self.canvas.lift(self.table_number)
 
@@ -164,8 +183,24 @@ class Table:
 		lines = [
 			"Table " + self.table["table_number"]
 		]
-		if not self.editing:
-			lines.append("Empty") # Will contain status of booking and time
+
+		if not self.editing and self.current_booking:
+			# The customers at this table have left
+			if self.current_booking["status"] == COMPLETED:
+				self.current_booking = None
+			else:
+				lines.append(STATUSES[self.current_booking["status"]])
+
+				if self.current_booking["status"] == EMPTY:
+					lines.append(datetime.datetime.fromtimestamp(self.current_booking["arrival"]).strftime("%H:%M"))
+				else:
+					next_time = self.status_since + STATUS_TIMES[self.current_booking["status"]]
+					lines.append("{}-{}".format(
+						datetime.datetime.fromtimestamp(self.status_since).strftime("%H:%M"),
+						datetime.datetime.fromtimestamp(next_time).strftime("%H:%M")
+					))
+
+		self.canvas.coords(self.table_number, self.table["x_pos"] + self.table["width"] / 2, self.table["y_pos"] + self.table["height"] / 2)
 
 		self.canvas.dchars(self.table_number, 0, END)
 		self.canvas.insert(self.table_number, 0, '\n'.join(lines))
@@ -173,9 +208,6 @@ class Table:
 	def update_position(self):
 		self.canvas.coords(self.shape, self.table["x_pos"], self.table["y_pos"], self.table["x_pos"] + self.table["width"], self.table["y_pos"] + self.table["height"])
 		self.set_chairs()
-
-		self.canvas.coords(self.table_number, self.table["x_pos"] + self.table["width"] / 2, self.table["y_pos"] + self.table["height"] / 2)
-
 		self.update_text()
 		self.selectcallback(self)
 
@@ -222,14 +254,23 @@ class FloorPlan(Frame):
 		self.tables = []
 		self.populate()
 		self.set_editing(False)
+		self.check_bookings(True)
+		self.create_menu()
+
+	def show_menu(self, table, x, y):
+		self.select_table(table)
+		self.menu.post(x, y)
 
 	def select_table(self, table):
 		self.selected = table
 		self.details.load_table(table)
 
 	def populate(self):
+		now = datetime.datetime.now().timestamp()
 		for table in tables.values():
-			self.tables.append(Table(table, self.floor_view, self.select_table))
+			floor_table = Table(table, self.floor_view, self.select_table, self.show_menu)
+			floor_table.status_since = now
+			self.tables.append(floor_table)
 
 	def add_table(self): # Also uploads to db, but doesn't commit
 		new_table = dict(DEFAULT_TABLE)
@@ -256,7 +297,7 @@ class FloorPlan(Frame):
 		tables[new_table["table_id"]] = new_table
 
 		# Convert to a canvas table
-		canvas_table = Table(new_table, self.floor_view, self.select_table)
+		canvas_table = Table(new_table, self.floor_view, self.select_table, self.show_menu)
 		canvas_table.set_editing(True)
 		self.tables.append(canvas_table)
 
@@ -305,3 +346,40 @@ class FloorPlan(Frame):
 
 			self.commit()
 			self.callback()
+
+	def change_status(self, status=None):
+		if not self.selected or not self.selected.current_booking: return
+
+		if status is None:
+			status = self.selected.current_booking["status"] + 1
+		self.selected.set_status(status)
+
+	def create_menu(self):
+		self.menu = Menu(self)
+		status = Menu(self)
+
+		for i in range(len(STATUSES)):
+			status.add_command(label=STATUSES[i], command=lambda i=i: self.change_status(i))
+
+		self.menu.add_cascade(label="Change status...", menu=status)
+		self.menu.add_command(label="Next status", command=self.change_status)
+		self.menu.add_command(label="Address ping")
+
+	def check_bookings(self, allow_started=False):
+		soon = list(filter(lambda b: util.is_soon(b["arrival"]), bookings.values()))
+
+		for table in self.tables:
+			for booking in soon:
+				if booking["table_id"] == table.table["table_id"] and table.current_booking != booking and booking["status"] != COMPLETED:
+					if table.current_booking and not allow_started:
+						args = (
+							table.table["table_number"],
+							datetime.datetime.fromtimestamp(table.current_booking["arrival"]).strftime("%H:%M")
+						)
+						messagebox.showerror("Booking Clash", "There is a booking at table {} for {}, but this table is still occupied.".format(*args))
+					else:
+						table.current_booking = booking
+						table.update_text()
+					soon.remove(booking)
+					break
+		self.after(10000, self.check_bookings) # Loops

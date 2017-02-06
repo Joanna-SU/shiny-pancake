@@ -210,6 +210,7 @@ class MemberManager(Frame):
 
 		del members[user["member_id"]]
 		self.populate_list()
+		self.select(None)
 
 	# End callbacks
 

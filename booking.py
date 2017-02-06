@@ -179,26 +179,31 @@ class BookingManager(Frame):
 	# Callbacks for different forms
 
 	def booking_added(self, booking):
-		cursor.execute(ADD_BOOKING, (booking["table_id"], booking["arrival"]))
-		database.commit()
+		if booking:
+			cursor.execute(ADD_BOOKING, (booking["table_id"], booking["arrival"]))
+			database.commit()
 
-		booking["booking_id"] = last_id()
-		bookings[booking["booking_id"]] = booking
+			booking["booking_id"] = last_id()
+			booking["status"] = EMPTY
+			bookings[booking["booking_id"]] = booking
 
-		self.populate_list()
+			self.populate_list()
 
 	def booking_modified(self, booking):
-		cursor.execute(MODIFY_BOOKING, (booking["table_id"], booking["arrival"], booking["booking_id"]))
+		if booking:
+			cursor.execute(MODIFY_BOOKING, (booking["table_id"], booking["arrival"], booking["booking_id"]))
 
-		database.commit()
-		self.populate_list()
+			database.commit()
+			self.populate_list()
 
 	def booking_deleted(self, booking):
-		cursor.execute(DELETE_EMPLOYEE, (booking["booking_id"], ))
-		database.commit()
+		if booking:
+			cursor.execute(DELETE_BOOKING, (booking["booking_id"], ))
+			database.commit()
 
-		del bookings[booking["booking_id"]]
-		self.populate_list()
+			del bookings[booking["booking_id"]]
+			self.populate_list()
+			self.select(None)
 
 	# End callbacks
 

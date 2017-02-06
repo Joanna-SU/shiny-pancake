@@ -55,6 +55,10 @@ DELETE_BOOKING  = "DELETE FROM booking " \
 LIST_BOOKINGS   = "SELECT * " \
                   "FROM booking;"
 
+SET_STATUS      = "UPDATE booking " \
+                  "SET status=? " \
+                  "WHERE booking_id=?;"
+
 # Password hashing and salting
 # Hashes and salts are all handled as bytes objects
 
