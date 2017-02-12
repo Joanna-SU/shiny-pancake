@@ -113,6 +113,7 @@ class Table:
 		self.set_shape(table["shape"])
 
 		self.update_position()
+		self.ping = False
 
 	def set_status(self, status):
 		"""Updates the database with the given status and calculates
@@ -247,6 +248,7 @@ class Table:
 				self.current_booking = None
 				self.set_waiter(None)
 				self.canvas.itemconfig(self.shape, fill="#EEE")
+				self.ping = False
 			else:
 				lines.append(STATUSES[self.current_booking["status"]])
 
@@ -280,6 +282,15 @@ class Table:
 		self.editing = editing
 		self.update_text()
 
+	def toggle_ping(self):
+		self.ping = not self.ping
+
+	def set_flash(self, flash):
+		"""Sets the animation state of the table's ping"""
+		self.canvas.itemconfig(self.shape,
+			outline="red" if self.ping and flash else "black",
+			width=4 if self.ping else 2)
+
 	def cleanup(self):
 		"""Deletes all the shapes this table used on the canvas"""
 		self.canvas.delete(self.shape)
@@ -308,6 +319,8 @@ class FloorPlan(tkinter.Frame):
 		self.populate()
 		self.set_editing(False)
 		self.check_bookings(True)
+		self.flash = False
+		self.animate_pings()
 		self.init_menu()
 
 	def init_toolbar(self):
@@ -342,7 +355,8 @@ class FloorPlan(tkinter.Frame):
 	def show_menu(self, table, x, y):
 		"""Shows the table right-click menu"""
 		self.select_table(table)
-		self.menu.post(x, y)
+		if not self.editing and self.selected.current_booking:
+			self.menu.post(x, y)
 
 	def select_table(self, table):
 		self.selected = table
@@ -458,6 +472,11 @@ class FloorPlan(tkinter.Frame):
 			status = self.selected.current_booking["status"] + 1
 		self.selected.set_status(status)
 
+	def toggle_ping(self):
+		"""Toggles ping on the selected table"""
+		if not self.selected or not self.selected.current_booking: return
+		self.selected.toggle_ping()
+
 	def init_menu(self):
 		"""Initializes the right-click table menu"""
 		self.menu = tkinter.Menu(self, tearoff=False)
@@ -468,7 +487,7 @@ class FloorPlan(tkinter.Frame):
 
 		self.menu.add_cascade(label="Change status...", menu=status)
 		self.menu.add_command(label="Next status", command=self.change_status)
-		self.menu.add_command(label="Address ping")
+		self.menu.add_command(label="Toggle ping", command=self.toggle_ping)
 
 	def check_bookings(self, allow_started=False):
 		"""Starts a periodic cycle of checking for bookings that are
@@ -492,10 +511,20 @@ class FloorPlan(tkinter.Frame):
 						table.current_booking = booking
 						table.update_text()
 
-						if data.current_work:
-							waiter = data.members[min(data.current_work, key=data.current_work.get)]
+						# Don't allocate someone who isn't here
+						possible = list(filter(lambda k: data.members[k]["present"], data.current_work.keys()))
+						if possible:
+							waiter = data.members[min(possible, key=data.current_work.get)]
 							table.set_waiter(waiter)
 					soon.remove(booking)
 					break
 		# Set a delay before calling this again
 		self.after(10000, self.check_bookings)
+
+	def animate_pings(self):
+		"""Periodically tells all the tables with pings to flash"""
+		self.flash = not self.flash
+
+		for table in self.tables:
+			table.set_flash(self.flash)
+		self.after(500, self.animate_pings)

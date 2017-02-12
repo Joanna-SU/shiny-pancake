@@ -18,9 +18,13 @@ MODIFY_PASSWORD = "UPDATE staff " \
 DELETE_EMPLOYEE = "DELETE FROM staff " \
                   "WHERE member_id=?;"
 
-LIST_EMPLOYEES  = "SELECT member_id, first_name, last_name, phone_number, permission " \
+LIST_EMPLOYEES  = "SELECT member_id, first_name, last_name, phone_number, present, permission " \
                   "FROM staff " \
                   "ORDER BY first_name;"
+
+MARK_PRESENT    = "UPDATE staff " \
+                  "SET present=? " \
+                  "WHERE member_id=?;"
 
 GET_SALT        = "SELECT salt FROM staff WHERE member_id=?"
 CAN_LOGIN       = "SELECT CASE WHEN password=? THEN 1 ELSE 0 END " \
@@ -103,6 +107,7 @@ def load_members():
 	members.clear()
 	for row in cursor.fetchall():
 		members[row[0]] = {
+			"present": row[-2],
 			"permission": row[-1]
 		}
 		for i in range(4): # Copy fields directly one at a time

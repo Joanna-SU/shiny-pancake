@@ -21,6 +21,9 @@ class MainWindow(tkinter.Frame):
 
 	def login(self, member=None):
 		"""Sets the system-wide logged in member to the given member"""
+		self.present_button["state"] = NORMAL
+		login.member = member
+
 		if member:
 			self.buttons[LOGIN]["state"]       = DISABLED
 			self.frames[LOGIN].submit["state"] = DISABLED
@@ -29,7 +32,9 @@ class MainWindow(tkinter.Frame):
 			self.loginbutton["text"] = LOGOUT_TAG
 			self.loginbutton["command"] = self.login
 			self.frames[ADD_MEMBER].select() # Prevent deleting yourself
+
 			permission = member["permission"]
+			self.present.set(member["present"])
 		else:
 			self.buttons[LOGIN]["state"]       = NORMAL
 			self.frames[LOGIN].submit["state"] = NORMAL
@@ -42,7 +47,10 @@ class MainWindow(tkinter.Frame):
 					or self.buttons[BOOKINGS]["relief"] == SUNKEN:
 				# Switch to a valid page
 				self.frame(LOGIN)
+
 			permission = False
+			self.present.set(False)
+			self.present_button["state"] = DISABLED
 
 		state = NORMAL if permission else DISABLED
 		self.buttons[ADD_MEMBER]["state"]     = state
@@ -53,7 +61,6 @@ class MainWindow(tkinter.Frame):
 			self.frames[FLOOR_PLAN].set_editing(False)
 
 		self.loginbutton["state"] = NORMAL
-		login.member = member
 
 	def frame(self, frame):
 		"""Selects a frame by bringing it to the front"""
@@ -68,8 +75,26 @@ class MainWindow(tkinter.Frame):
 		self.frames[frame].lift()
 		self.framewrapper["text"] = BUTTONS[frame]
 
+	def mark_present(self):
+		"""Updates the cache and database with the present status"""
+		if login.member:
+			logout = login.member["present"] and not self.present.get() \
+				and tkinter.messagebox.askyesno("Log out?", "You have been marked as not present. Do you want to log out?")
+
+			login.member["present"] = self.present.get()
+			data.cursor.execute(data.MARK_PRESENT, (login.member["present"], login.member["member_id"]))
+			data.database.commit()
+
+			if logout: self.login()
+
 	def init_menu(self):
 		"""Initializes the menu and login frames"""
+		# Present toggle
+		self.present = tkinter.IntVar()
+		self.present_button = tkinter.Checkbutton(self, text="Present", variable=self.present)
+		self.present_button.grid(row=0, column=0, sticky=EW)
+		self.present.trace("w", lambda a, b, c: self.mark_present())
+
 		# Login status
 		loginbar = tkinter.Frame(self, border=1, relief=SUNKEN)
 		self.logged = tkinter.Label(loginbar)
