@@ -1,16 +1,7 @@
 import math
 
-OVAL      = 0
-TWO_SIDE  = 1
-FOUR_SIDE = 2
-
-SHAPES = [
-	"Oval",
-	"Rectangle (two sides)",
-	"Rectangle (four sides)"
-]
-
 def generate_oval(table):
+	"""Generates the positions of the chairs around an oval table"""
 	rx = table["width"] / 2
 	ry = table["height"] / 2
 	center_x = table["x_pos"] + rx
@@ -30,6 +21,8 @@ def generate_oval(table):
 		angle += increment
 
 def generate_two_side(table, capacity=None):
+	"""Generates the positions of the chairs around a rectangular table
+	with two sides full"""
 	if capacity is None:
 		capacity = table["capacity"]
 
@@ -50,6 +43,8 @@ def generate_two_side(table, capacity=None):
 		yield (x, y)
 
 def generate_four_side(table):
+	"""Generates the positions of the chairs around a rectangular table
+	with all four sides full"""
 	upper = table["y_pos"] + table["height"]
 	n = table["capacity"]*table["height"] / (table["width"]+table["height"])
 	n = round(n) & ~1
@@ -73,6 +68,8 @@ def generate_four_side(table):
 		yield (x, y)
 
 def generate_spaced(lower, upper, n):
+	"""Generates positions in the center of equal width sections
+	between lower and upper"""
 	if n == 0: return
 
 	spacing = (upper - lower) / n
@@ -82,12 +79,41 @@ def generate_spaced(lower, upper, n):
 		yield x
 		x += spacing
 
-generators = [
+def max_chairs(table):
+	"""Calculates the maximum number of chairs that can fit
+	around the given table"""
+	if table["shape"] == 0:
+		width = table["width"] + 40
+		height = table["height"] + 40
+
+		circumference = math.pi * math.sqrt((width*width + height*height) / 2)
+		max_chairs = int(circumference // 37)
+	else:
+		max_chairs = (table["width"] + 5) // 37
+		if table["shape"] == 2:
+			max_chairs += (table["height"] + 5) // 37
+
+		max_chairs *= 2
+
+	return max_chairs
+
+def get_shape(canvas, shape):
+	if shape == 0:
+		return canvas.create_oval(0, 0, 0, 0, width=2, fill="#EEE")
+	else:
+		return canvas.create_rectangle(0, 0, 0, 0, width=2, fill="#EEE")
+
+SHAPES = (
+	"Oval",
+	"Rectangle (two sides)",
+	"Rectangle (four sides)"
+)
+GENERATORS = (
 	generate_oval,
 	generate_two_side,
 	generate_four_side
-]
+)
 
 def generate_chairs(table):
 	if table["capacity"] > 0:
-		yield from generators[table["shape"]](table)
+		yield from GENERATORS[table["shape"]](table)

@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS staff (
 /* Stores all bookings that are coming up */
 CREATE TABLE IF NOT EXISTS booking (
 	booking_id   INTEGER     PRIMARY KEY,
+	customer     CHAR(16)    NOT NULL DEFAULT "",
 	member_id    INTEGER,
 	table_id     INTEGER     NOT NULL,
 	arrival      INTEGER     NOT NULL,

@@ -1,5 +1,5 @@
-from constants import *
 import sqlite3, os, hashlib
+from constants import *
 
 # Pre-defined SQL statements
 
@@ -42,11 +42,11 @@ LIST_TABLES     = "SELECT * " \
                   "FROM layout_table;"
 
 ADD_BOOKING     = "INSERT INTO booking " \
-                  "(table_id, arrival) " \
-                  "VALUES (?, ?);"
+                  "(customer, table_id, arrival) " \
+                  "VALUES (?, ?, ?);"
 
 MODIFY_BOOKING  = "UPDATE booking " \
-                  "SET table_id=?, arrival=? " \
+                  "SET customer=?, table_id=?, arrival=? " \
                   "WHERE booking_id=?;"
 
 DELETE_BOOKING  = "DELETE FROM booking " \
@@ -59,37 +59,44 @@ SET_STATUS      = "UPDATE booking " \
                   "SET status=? " \
                   "WHERE booking_id=?;"
 
-# Password hashing and salting
 # Hashes and salts are all handled as bytes objects
 
 def hash(password, salt):
+	"""Generates a hashed password for storing in the database"""
 	return hashlib.sha256(password.encode("utf-8") + salt).digest()
 
 def get_salt(member_id):
+	"""Grabs salt for the given member from the database"""
 	cursor.execute(GET_SALT, (member_id, ))
 	return bytes(cursor.fetchone()[0])
 
 def gen_salt():
+	"""Generates a salt for use with hashing to prevent rainbow table use"""
 	return os.urandom(16)
 
-# End hashing and salting
-
+# Global database access
 database = sqlite3.connect(DATABASE)
 cursor   = database.cursor()
 
 def init_db():
+	"""Handles loading all the data the program needs from the database"""
 	with open("setup.sql", "r") as script:
 		database.executescript(script.read())
+	load_members()
+	load_tables()
+	load_bookings()
 
-def cleanup_db(): # Not sure if necessary
+def cleanup_db():
 	cursor.close()
 	database.close()
 
-def last_id(): # Does this need to be here?
-	return cursor.lastrowid
+# Caches of members, tables and bookings
 
 members = {}
+current_work = {}
+
 def load_members():
+	"""Populates the cache of members from the database"""
 	global members
 	cursor.execute(LIST_EMPLOYEES)
 
@@ -101,8 +108,11 @@ def load_members():
 		for i in range(4): # Copy fields directly one at a time
 			members[row[0]][FIELDS[i][0]] = row[i]
 
+	current_work.update({id: 0 for id in members})
+
 tables = {}
 def load_tables():
+	"""Populates the cache of tables from the database"""
 	global tables
 	cursor.execute(LIST_TABLES)
 
@@ -117,16 +127,18 @@ def load_tables():
 
 bookings = {}
 def load_bookings():
+	"""Populates the cache of bookings from the database"""
 	global bookings
 	cursor.execute(LIST_BOOKINGS)
 
 	bookings.clear()
 	for row in cursor.fetchall():
 		bookings[row[0]] = {
-			"booking_id": row[0],
-			"member_id": row[1],
-			"table_id": row[2],
-			"arrival": row[3],
-			"status": row[4],
-			"ping": row[5]
+			"booking_id":  row[0],
+			"customer":   row[1],
+			"member_id": row[2],
+			"table_id": row[3],
+			"arrival": row[4],
+			"status": row[5],
+			"ping":  row[6]
 		}

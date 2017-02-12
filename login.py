@@ -1,79 +1,59 @@
-from tkinter import *
-from tkinter import messagebox
-from data import *
-from util import validate_digits
-from constants import MASK
-import hashlib, sqlite3
+import data, util, tkinter, sqlite3
+from constants import *
 
-def find_by_name(name):
-	"""Finds the member that most closely matches the given name.
+member = None # The currently logged in member
 
-	For example, "sam" will more closely match "samuel" than "s".
-	The comparison is case-insensitive."""
-	max_match = 0
-	max_member = None
+def can_login(member_id, password):
+	salt = data.get_salt(member_id)
+	password = data.hash(password, salt)
 
-	for key in members:
-		member_name = members[key]["first_name"] + " " + members[key]["last_name"]
+	data.cursor.execute(data.CAN_LOGIN, (sqlite3.Binary(password), member_id))
+	return bool(data.cursor.fetchone()[0])
 
-		if len(member_name) < max_match: # Can't possibly be closest
-			continue
-
-		match = 0
-		while match < len(member_name) and match < len(name):
-			if member_name[match].lower() != name[match].lower():
-				break
-			match += 1
-
-		if match > max_match:
-			max_match = match
-			max_member = key
-
-	return max_member if max_member else -1
-
-def can_login(username, password):
-	salt = get_salt(username)
-	password = hash(password, salt)
-	cursor.execute(CAN_LOGIN, (sqlite3.Binary(password), username))
-
-	return bool(cursor.fetchone()[0])
-
-class LoginForm(Frame):
+class LoginForm(tkinter.Frame):
 	def __init__(self, callback, master=None):
-		Frame.__init__(self, master)
+		tkinter.Frame.__init__(self, master)
 		self.callback = callback
 
-		Label(self, text="User ID").grid(row=0, sticky=E)
-		Label(self, text="Password").grid(row=1, sticky=E)
+		tkinter.Label(self, text="User ID").grid(row=0, sticky=E)
+		self.name = tkinter.Entry(self)
+		self.name.grid(row=0, column=1, sticky=EW)
 
-		self.user_id = Entry(self)
-		self.user_id.grid(row=0, column=1, sticky=EW)
-
-		self.password = Entry(self, show=MASK)
+		tkinter.Label(self, text="Password").grid(row=1, sticky=E)
+		self.password = tkinter.Entry(self, show=MASK)
 		self.password.grid(row=1, column=1, sticky=EW)
 
-		self.submit = Button(self, text="Log In", command=self.login)
+		self.submit = tkinter.Button(self, text="Log In", command=self.login)
 		self.submit.grid(row=2, column=0, columnspan=2, pady=5, sticky=E)
 
 		self.columnconfigure(1, weight=1)
 		self.columnconfigure(2, weight=2)
 
-	def login(self):
-		user_raw = self.user_id.get()
-		if not user_raw.isnumeric():
-			user_id = find_by_name(user_raw)
+		# Pressing enter submits the form
+		self.name.bind("<Return>", self.login)
+		self.password.bind("<Return>", self.login)
+		self.submit.bind("<Return>", self.login)
+
+	def login(self, e=None):
+		"""Processes submitting the login form"""
+		name = self.name.get()
+		# Need to have an ID to look up in the db
+		if not name.isnumeric():
+			member_id = util.find_by_name(name)
 		else:
-			user_id = int(user_raw)
+			member_id = int(name)
 
-		if user_id in members:
-			user = members[user_id]
+		if member_id in data.members:
+			member = data.members[member_id]
 
-			if can_login(user_id, self.password.get()):
-				self.callback(user)
-				messagebox.showinfo("Login Successful", "You are now logged in as {first_name}, user ID {member_id}".format(**user))
-				self.user_id.delete(0, END)
+			if can_login(member_id, self.password.get()):
+				self.callback(member)
+				tkinter.messagebox.showinfo("Login Successful", "You are now logged in as {}, member ID {}".format(util.unique_name(member), member["member_id"]))
+				# A successful login clears the name field
+				self.name.delete(0, END)
 			else:
-				messagebox.showerror("Login failed", "Invalid password for {first_name} {last_name}.".format(**user))
+				tkinter.messagebox.showerror("Login failed", "Invalid password for {first_name} {last_name}.".format(**member))
 		else:
-			messagebox.showerror("Login failed", "User \"{}\" not found.".format(self.user_id.get()))
+			tkinter.messagebox.showerror("Login failed", "Member \"{}\" not found.".format(self.name.get()))
+		# Both successful and unsuccessful logins clear the password field
 		self.password.delete(0, END)
